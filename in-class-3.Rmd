@@ -1,0 +1,213 @@
+---
+title: "in-class-3"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+title: "in-class-2"
+author: "Emma Mavis, Fides Schwartz, Nansu Wang, Weilang Hu, Chenxi Rong, Vicki Nomwesigwa"
+date: "8/31/2021"
+output: pdf_document
+---
+
+```{r setup}
+library(ggplot2)
+```
+
+```{r}
+beer <- read.csv('consumo_cerveja.csv', stringsAsFactors = FALSE, sep = ',', dec = ',', nrows = 365)
+
+# rename the variables
+beer$date <- beer$Data
+beer$temp_median_c <- beer$Temperatura.Media..C.
+beer$temp_min_c <- beer$Temperatura.Minima..C.
+beer$temp_max_c <- beer$Temperatura.Maxima..C.
+beer$precip_mm <- beer$Precipitacao..mm.
+beer$weekend <- factor(beer$Final.de.Semana)
+beer$beer_cons_liters <- as.numeric(beer$Consumo.de.cerveja..litros.)
+beer <- beer[ , 8:ncol(beer)]
+```
+
+```{r}
+fit <- lm(beer_cons_liters ~ weekend + precip_mm + temp_median_c, data = beer)
+summary(fit)
+
+ggplot(fit,aes(x=weekend, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs weekend",x="weekend",y="Residuals")
+
+ggplot(fit,aes(x=precip_mm, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs precipitation",x="precipitation_mm",y="Residuals")
+
+ggplot(fit,aes(x=temp_median_c, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs median_temperature",x="median_temperature",y="Residuals")
+
+plot(fit,which=1,col=c("blue4"))
+plot(fit,which=2,col=c("blue4"))
+```
+
+
+```{r}
+beer$beer_l <-log(beer$beer_cons_liters)
+ggplot(beer, aes(x=beer_l)) + geom_histogram()
+
+ggplot(beer, aes(x=beer_cons_liters)) + geom_histogram()
+
+fit_new <- lm(beer_l ~ weekend + precip_mm + temp_median_c, data = beer)
+summary(fit_new)
+confint(fit_new, level = 0.95)
+
+ggplot(fit_new,aes(x=weekend, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs weekend",x="weekend",y="Residuals")
+
+ggplot(fit_new,aes(x=precip_mm, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs precipitation",x="precipitation_mm",y="Residuals")
+
+ggplot(fit_new,aes(x=temp_median_c, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs median_temperature",x="median_temperature",y="Residuals")
+
+plot(fit_new,which=1,col=c("blue4"))
+plot(fit_new,which=2,col=c("blue4"))
+```
+```{r}
+beer$rain <- 0
+beer$rain[(beer$precip_mm > 0) & (beer$precip_mm < 2.5)] <- 1
+beer$rain[beer$precip_mm >= 2.5] <- 2
+
+beer$rain <- factor(beer$rain)
+
+fit_new_assignment3 <- lm(beer_l ~ weekend + rain + temp_median_c, data = beer)
+summary(fit_new_assignment3)
+```
+```{r}
+ggplot(fit_new_assignment3,aes(x=weekend, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs weekend",x="weekend",y="Residuals")
+
+ggplot(fit_new_assignment3,aes(x=rain, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs precipitation",x="rain",y="Residuals")
+
+ggplot(fit_new_assignment3,aes(x=temp_median_c, y=fit$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() +
+labs(title="Residuals vs median_temperature",x="median_temperature",y="Residuals")
+
+plot(fit_new_assignment3,which=1,col=c("blue4"))
+plot(fit_new_assignment3,which=2,col=c("blue4"))
+```
+```{r}
+plot(fit_new_assignment3,which=5,col=c("blue4"))
+```
+
+```{r}
+y_pred <- predict(fit_new_assignment3)
+MSE <- mean((beer$beer_l - y_pred)^2)
+sqrt(MSE)
+```
+
+```{r}
+set.seed(123)
+#shuffle the data
+shuffled_beer <- beer[sample(nrow(beer)),]
+# Define the number of folds you want
+K <- 10
+# Define a matrix to save your results into
+RSME <- matrix(0,nrow=K,ncol=1)
+# Split the row indexes into k equal parts
+kth_fold <- cut(seq(1,nrow(shuffled_beer)),breaks=K,labels=FALSE)
+# Now write the for loop for the k-fold cross validation
+for(k in 1:K){
+# Split your data into the training and test datasets
+test_index <- which(kth_fold==k)
+train <- shuffled_beer[-test_index,]
+test <- shuffled_beer[test_index,]
+# Now that you've split the data, 
+# fit model on train data
+train_model = lm(beer_l ~ weekend + rain + temp_median_c, data = train)
+# predict onto the test data using the linear model
+y_test_predict <- predict(train_model, test)
+MSE <- mean((test$beer_l - y_test_predict)^2)
+RSME[k,] <- sqrt(MSE) 
+}
+# calculate the average of all RSME mat
+avgRSME <- mean(RSME)
+avgRSME
+
+```
+
+```{r}
+ggplot(beer,aes(x=temp_median_c, y=beer_l)) +
+  geom_point(alpha = .5,colour="blue4") +
+  geom_smooth(method="lm",col="red3") + theme_classic() +
+  labs(title="Beer vs Temp Median",x="Median Temperature",y="Beer") +
+  facet_wrap( ~ weekend, ncol=2)
+
+ggplot(beer,aes(x=rain, y=beer_l, fill="rain")) +
+  geom_boxplot(alpha = .5,colour="blue4") +
+  geom_smooth(method="lm",col="red3") + theme_classic() +
+  labs(title="Beer vs Rain",x="Rain",y="Beer") +
+  facet_wrap( ~ weekend, ncol=2)
+
+```
+
+### Interactions
+```{r}
+model_interactions = lm(beer_l ~weekend*rain + weekend *temp_median_c, data = beer) # will be full model
+summary(model_interactions)
+```
+
+### Stepwise AIC
+```{r}
+NullModel <- lm(beer_cons_liters ~ weekend,data=beer)
+Model_forward <- step(NullModel, scope = formula(model_interactions),direction="both",trace=0)
+Model_forward$call
+```
+
+### Stepwise BIC
+```{r}
+# use k = log(n) to use BIC instead.
+n <- nrow(beer)
+Model_forward2 <- step(NullModel, scope = formula(model_interactions),direction="both",trace=0,
+                      k = log(n))
+# Let's see the variables the model selected
+Model_forward2$call
+```
+
+### RSME with interaction model
+```{r}
+set.seed(123)
+#shuffle the data
+shuffled_beer <- beer[sample(nrow(beer)),]
+# Define the number of folds you want
+K <- 10 #from question 3
+# Define a matrix to save your results into
+RSME <- matrix(0,nrow=K,ncol=1)
+# Split the row indexes into k equal parts
+kth_fold <- cut(seq(1,nrow(shuffled_beer)),breaks=K,labels=FALSE)
+# Now write the for loop for the k-fold cross validation
+for(k in 1:K){
+# Split your data into the training and test datasets
+test_index <- which(kth_fold==k)
+train <- shuffled_beer[-test_index,]
+test <- shuffled_beer[test_index,]
+# Now that you've split the data, 
+# fit model on train data
+train_model = lm(beer_l ~weekend*rain + weekend*temp_median_c, data = train)
+# predict onto the test data using the linear model
+y_test_predict <- predict(train_model, test)
+MSE <- mean((test$beer_l - y_test_predict)^2)
+RSME[k,] <- sqrt(MSE) 
+}
+# calculate the average of all RSME mat
+avgRSME <- mean(RSME)
+avgRSME
+```
